@@ -40,15 +40,17 @@ class Image_Detector:
         outputs:
             detection: All the bounding boxes inferenced by the model"""
         self.image = image
-        self.image_h, self.image_w = np.shape(self.image)
+        self.image_h, self.image_w = np.shape(self.image)[0], np.shape(self.image)[1]
         self.Net.setInput(cv2.dnn.blobFromImage(self.resized_image, size=self.resize,
                                                 swapRB=True, crop=True))
-        self.detections = self.Net.forward()
+        print('Graph loaded')
+        detections = self.Net.forward()
+        return detections
 
-    def provide_output(self):
+    def provide_output(self, detections):
         """Re-arrange the model outputs into understandable values"""
         self.result_array = list()
-        for detection in self.detections[0, 0, :, :]:
+        for detection in detections[0, 0, :, :]:
             score = float(detection[2])
             if score > self.Threshold:
                 x_min = int(detection[3] * self.image_w)
