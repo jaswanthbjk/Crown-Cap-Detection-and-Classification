@@ -65,6 +65,8 @@ class cv_Detector:
         """Re-arrange the model outputs into understandable values"""
         self.result_array = list()
         seen_tray = False
+        tray_score = 0
+        tray_box = []
         for detection in detections[0, 0, :, :]:
             score = float(detection[2])
             if score > self.Threshold:
@@ -75,11 +77,19 @@ class cv_Detector:
                 cls_label = self.label_dict[int(detection[1])]
                 if cls_label == 'Tray':
                     seen_tray = True
+                    if tray_score < float(score):
+                        tray_box = [x_min, y_min, x_max, y_max, cls_label, score]
+                        tray_score = score
+                    continue
                 single_result = [x_min, y_min, x_max, y_max, cls_label, float(score)]
                 self.result_array.append(single_result)
+
         if not seen_tray:
             self.result_array.append(self.tray_detector(self.image))
-
+            self.tray = self.tray_detector(self.image)
+        else:
+            self.result_array.append(tray_box)
+            self.tray = tray_box
         return self.result_array
 
     def show_save_image(self, save_output: bool, output_dir: str):

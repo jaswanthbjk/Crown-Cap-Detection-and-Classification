@@ -1,10 +1,9 @@
 import argparse
-import cv2
 import glob
-import numpy as np
-import matplotlib.pyplot as plt
 import os
 from pathlib import Path
+import cv2
+import numpy as np
 import tensorflow as tf
 
 # from src.object_detector import Image_Detector
@@ -45,6 +44,9 @@ class cap_detector:
             print("Error opening video file")
         prev_frame = None
         buf_stable_frame = None
+        prev_unique = 0
+        rising_edge = False
+        falling_edge = False
 
         length = int(videocap.get(cv2.CAP_PROP_FRAME_COUNT))
         print(length)
@@ -62,40 +64,71 @@ class cap_detector:
                 if prev_frame is not None:
                     diff = cv2.absdiff(prev_frame, cur_frame)
                     unique = len(np.unique(diff))
+                    if unique - prev_unique > 30:
+                        rising_edge = True
+                    if prev_unique - unique > 30:
+                        falling_edge = True
                     print("Frame No:", frame_n, " | ", unique)
 
-                    if unique < 30 and frame_n > 85:
+                    if unique < 30 and rising_edge and falling_edge:
+                        self.frame_number = frame_n
                         print(" The stable frame number is : " + str(frame_n))
                         stable_frame_count = frame_n
                         stable_frame = buf_stable_frame
                         break
+                    prev_unique = unique
                 prev_frame = cur_frame
 
         if viz_image:
-            img_out = os.path.join(self.result_path, self.video_name + '.png')
+            # img_out = os.path.join(self.result_path, str(self.video_name + '.png'))
             cv2.imwrite(img_out, stable_frame)
         return stable_frame
+
+    def bbox_in_check(self, in_box):
+        tray = self.cap_det.tray
+        print(tray)
+        print(in_box)
+        if in_box[0] > tray[0] and in_box[1] > tray[1]:
+            if in_box[2] < tray[2] and in_box[3] < tray[3]:
+                return True
+        else:
+            print("Box not in the Tray")
+            return False
+
+    def filter_detections(self, boxes_list, overlap_threshold=0.9):
+        filtered_boxes = []
+        for idx in range(len(boxes_list)):
+            x_min = int(boxes_list[idx][0])
+            y_min = int(boxes_list[idx][1])
+            x_max = int(boxes_list[idx][2])
+            y_max = int(boxes_list[idx][3])
+            cls = str(boxes_list[idx][4])
+            print(cls)
+            if cls == "Tray":
+                continue
+            score = str(np.round(boxes_list[idx][-1], 2))
+            box = [x_min, y_min, x_max, y_max, cls, float(score)]
+            if self.bbox_in_check(box):
+                filtered_boxes.append(box)
+        return filtered_boxes
 
     def perform_inference(self, viz_save=False, to_csv=False):
         self.stable_frame = self.StableframeExtractor(viz_image=True)
 
         if self.tf_version == 2:
-            self.det_array = self.cap_det.DetectFromImage(self.stable_frame)
+            self.det_array = self.cap_det.detect_from_image(self.stable_frame)
         else:
-            image = self.cap_det.img_resizer(self.stable_frame, op_size=(640, 580))
+            image = self.cap_det.img_resizer(self.stable_frame, op_size=(1024, 1024))
             detections = self.cap_det.detect_from_image(image=self.stable_frame)
             self.det_array = self.cap_det.provide_output(detections)
 
-        print(self.det_array)
-        img = self.display_detections(self.stable_frame, self.det_array, det_time=True)
+        filtered_boxes = self.filter_detections(self.det_array)
+        img = self.display_detections(self.stable_frame, filtered_boxes, det_time=None)
         if viz_save:
             cv2.imshow('TF2 Detection', img)
             cv2.waitKey(0)
 
-        img_out = os.path.join(self.result_path, self.video_name + '.png')
-        cv2.imwrite(img_out, img)
-
-    def display_detections(self, image, boxes_list, det_time=True):
+    def display_detections(self, image, boxes_list, det_time=None):
         image = self.stable_frame
         image_w, image_h = image.shape[0], image.shape[1]
         # scale_w, scale_h = image_w / 300.0, image_h / 300.0
@@ -130,24 +163,21 @@ if __name__ == '__main__':
 
     parser.add_argument('--video_path', action='store', type=str, help='Path to Videos collected')
     parser.add_argument('--result_path', action='store', type=str, help='Path in which results are stored')
-    parser.add_argument('--frozen_graph_path', action='store', type=str, help='Path to the Frozen graph .pb file')
-    parser.add_argument('--config_path', action='store', type=str, help='Path to the config .pbtxt file')
-    parser.add_argument('--ckpt_path', action='store', type=str, help='Path to the config .pbtxt file')
     parser.add_argument('--to_show', action='store', default=False, type=bool, help='Path to the config .pbtxt file')
 
     args = parser.parse_args()
-    print(args)
+    dirname = os.path.dirname(__file__)
 
-    video_path = args.video_path
-    result_path = args.result_path
-    frozengraph_path = args.frozen_graph_path
-    config_path = args.config_path
-    ckpt_path = args.ckpt_path
+    video_path = Path(args.video_path)
+    result_path = Path(args.result_path)
+    frozengraph_path = '../models/tf1_model/frozen_inference_graph.pb'
+    config_path = '../models/tf1_model/sample.pbtxt'
+    ckpt_path = os.path.join(dirname, 'tf2_model/saved_model/')
     to_show = args.to_show
 
     version = tf.__version__
-    # tf_version = int(version[0])
-    tf_version = 2
+    tf_version = int(version[0])
+    # tf_version = 2
 
     videos = glob.glob(os.path.join(video_path, '*.mp4'))
     print("Number of videos present are {}".format(len(videos)))

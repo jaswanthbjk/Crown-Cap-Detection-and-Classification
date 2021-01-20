@@ -27,7 +27,7 @@ class tf2_Detector:
         x, y, w, h = rect
         return [x, y, x + w, y + h, 'Tray', 100]
 
-    def DetectFromImage(self, img):
+    def detect_from_image(self, img):
         self.image = img
         im_height, im_width, _ = img.shape
         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
@@ -44,6 +44,8 @@ class tf2_Detector:
     def ExtractBBoxes(self, bboxes, bclasses, bscores, im_width, im_height):
         bbox = []
         seen_tray = False
+        tray_score = 0
+        tray_box = []
         for idx in range(len(bboxes)):
             if bscores[idx] >= self.Threshold:
                 y_min = int(bboxes[idx][0] * im_height)
@@ -53,9 +55,18 @@ class tf2_Detector:
                 class_label = self.label_dict[int(bclasses[idx])]
                 if class_label == 'Tray':
                     seen_tray = True
+                    if tray_score < float(bscores[idx]):
+                        tray_box = [x_min, y_min, x_max, y_max, class_label, float(bscores[idx])]
+                        tray_score = float(bscores[idx])
+                    continue
                 bbox.append([x_min, y_min, x_max, y_max, class_label, float(bscores[idx])])
+
         if not seen_tray:
             bbox.append(self.tray_detector(self.image))
+            self.tray = self.tray_detector(self.image)
+        else:
+            bbox.append(tray_box)
+            self.tray = tray_box
         return bbox
 
     def DisplayDetections(self, image, boxes_list, det_time=None):
