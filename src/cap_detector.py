@@ -5,19 +5,16 @@ from pathlib import Path
 import cv2
 import numpy as np
 import tensorflow as tf
+import csv
+import posixpath
 
-# from src.object_detector import Image_Detector
 from cv_object_detector import cv_Detector
 from tf2_object_detector import tf2_Detector
 
 
-# from src.cv_object_detector import cv_Detector
-# from src.tf2_object_detector import tf2_Detector
-
-
 class cap_detector:
-    def __init__(self, video_path: str, result_path: str, frozengraph_path: str, config_path: str, ckpt_path: str,
-                 tf_version: int):
+    def __init__(self, video_path: str, result_path: str, frozengraph_path: str,
+                 config_path: str, ckpt_path: str, tf_version: int):
         self.video_path = video_path
         self.video_name = os.path.splitext(os.path.basename(self.video_path))[0]
         self.result_path = result_path
@@ -32,12 +29,13 @@ class cap_detector:
                            3: "BottleCapFaceDown",
                            4: "BottleCapDeformed"}
         if tf_version == 2:
-            self.cap_det = tf2_Detector(self.label_dict, self.ckpt_path, self.threshold)
+            self.cap_det = tf2_Detector(self.label_dict, self.ckpt_path,
+                                        self.threshold)
         else:
-            self.cap_det = cv_Detector(self.label_dict, self.frozen_graph, self.pbtxt)
-        # self.cap_det = cv_Detector(self.label_dict, self.frozen_graph, self.pbtxt)
+            self.cap_det = cv_Detector(self.label_dict, self.frozen_graph,
+                                       self.pbtxt)
 
-    def StableframeExtractor(self, viz_image=True):
+    def StableframeExtractor(self, viz_image=False):
 
         videocap = cv2.VideoCapture(self.video_path)
         if not videocap.isOpened():
@@ -49,7 +47,6 @@ class cap_detector:
         falling_edge = False
 
         length = int(videocap.get(cv2.CAP_PROP_FRAME_COUNT))
-        print(length)
 
         for frame_n in range(length):
             success, cur_frame = videocap.read()
@@ -60,6 +57,7 @@ class cap_detector:
                 cur_frame = cv2.blur(cur_frame, (5, 5))
                 if frame_n == int(length / 2):
                     stable_frame = buf_stable_frame
+                    self.frame_number = frame_n
 
                 if prev_frame is not None:
                     diff = cv2.absdiff(prev_frame, cur_frame)
@@ -80,14 +78,14 @@ class cap_detector:
                 prev_frame = cur_frame
 
         if viz_image:
-            # img_out = os.path.join(self.result_path, str(self.video_name + '.png'))
+            img_out = os.path.join(self.result_path, str(self.video_name +
+                                                         '.png'))
+            print(img_out)
             cv2.imwrite(img_out, stable_frame)
         return stable_frame
 
     def bbox_in_check(self, in_box):
         tray = self.cap_det.tray
-        print(tray)
-        print(in_box)
         if in_box[0] > tray[0] and in_box[1] > tray[1]:
             if in_box[2] < tray[2] and in_box[3] < tray[3]:
                 return True
@@ -103,7 +101,6 @@ class cap_detector:
             x_max = int(boxes_list[idx][2])
             y_max = int(boxes_list[idx][3])
             cls = str(boxes_list[idx][4])
-            print(cls)
             if cls == "Tray":
                 continue
             score = str(np.round(boxes_list[idx][-1], 2))
@@ -112,18 +109,37 @@ class cap_detector:
                 filtered_boxes.append(box)
         return filtered_boxes
 
-    def perform_inference(self, viz_save=False, to_csv=False):
+    def perform_inference(self, viz_save=False, to_csv=True):
         self.stable_frame = self.StableframeExtractor(viz_image=True)
 
         if self.tf_version == 2:
             self.det_array = self.cap_det.detect_from_image(self.stable_frame)
         else:
-            image = self.cap_det.img_resizer(self.stable_frame, op_size=(1024, 1024))
+            image = self.cap_det.img_resizer(self.stable_frame, op_size=(1024,
+                                                                         1024))
             detections = self.cap_det.detect_from_image(image=self.stable_frame)
             self.det_array = self.cap_det.provide_output(detections)
 
         filtered_boxes = self.filter_detections(self.det_array)
-        img = self.display_detections(self.stable_frame, filtered_boxes, det_time=None)
+        img = self.display_detections(self.stable_frame, filtered_boxes,
+                                      det_time=None)
+        if to_csv:
+            with open(os.path.join(self.result_path, str(self.video_name +
+                                                         ".csv")), 'w',
+                      newline='') as f:
+                writer = csv.writer(f, delimiter=',')
+                all_results_array = []
+                for arr in filtered_boxes:
+                    result_arr = []
+                    if arr[4] != "Tray":
+                        result_arr.append(self.frame_number)
+                        x_mid, y_mid = arr[0] + arr[2] / 2, arr[1] + arr[3] / 2
+                        result_arr.append(x_mid)
+                        result_arr.append(y_mid)
+                        result_arr.append(arr[4])
+                        all_results_array.append(result_arr)
+                writer.writerows(all_results_array)
+
         if viz_save:
             cv2.imshow('TF2 Detection', img)
             cv2.waitKey(0)
@@ -147,13 +163,16 @@ class cap_detector:
 
             text = cls + ": " + score
             cv2.rectangle(img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 1)
-            cv2.rectangle(img, (x_min, y_min - 20), (x_min, y_min), (255, 255, 255), -1)
-            cv2.putText(img, text, (x_min + 5, y_min - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            cv2.rectangle(img, (x_min, y_min - 20), (x_min, y_min), (255, 255,
+                                                                     255), -1)
+            cv2.putText(img, text, (x_min + 5, y_min - 7),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
         if det_time is not None:
             fps = round(1000. / det_time, 1)
             fps_txt = str(fps) + " FPS"
-            cv2.putText(img, fps_txt, (25, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+            cv2.putText(img, fps_txt, (25, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
 
         return img
 
@@ -161,9 +180,12 @@ class cap_detector:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--video_path', action='store', type=str, help='Path to Videos collected')
-    parser.add_argument('--result_path', action='store', type=str, help='Path in which results are stored')
-    parser.add_argument('--to_show', action='store', default=False, type=bool, help='Path to the config .pbtxt file')
+    parser.add_argument('--video_path', action='store', type=str,
+                        help='Path to Videos collected')
+    parser.add_argument('--result_path', action='store', type=str,
+                        help='Path in which results are stored')
+    parser.add_argument('--to_show', action='store', default=False, type=bool,
+                        help='Path to the config .pbtxt file')
 
     args = parser.parse_args()
     dirname = os.path.dirname(__file__)
@@ -172,7 +194,7 @@ if __name__ == '__main__':
     result_path = Path(args.result_path)
     frozengraph_path = '../models/tf1_model/frozen_inference_graph.pb'
     config_path = '../models/tf1_model/sample.pbtxt'
-    ckpt_path = os.path.join(dirname, 'tf2_model/saved_model/')
+    ckpt_path = os.path.join(dirname, '../models/tf2_model/saved_model/')
     to_show = args.to_show
 
     version = tf.__version__
@@ -182,6 +204,8 @@ if __name__ == '__main__':
     videos = glob.glob(os.path.join(video_path, '*.mp4'))
     print("Number of videos present are {}".format(len(videos)))
     for video in videos:
-        cap_det_model = cap_detector(video_path=video, result_path=result_path, frozengraph_path=frozengraph_path,
-                                     config_path=config_path, ckpt_path=ckpt_path, tf_version=tf_version)
-        cap_det_model.perform_inference(viz_save=to_show)
+        cap_det_model = cap_detector(video_path=video, result_path=result_path,
+                                     frozengraph_path=frozengraph_path,
+                                     config_path=config_path,
+                                     ckpt_path=ckpt_path, tf_version=tf_version)
+        cap_det_model.perform_inference(viz_save=False)
