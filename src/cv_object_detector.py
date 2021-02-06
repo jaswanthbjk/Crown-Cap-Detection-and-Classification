@@ -12,27 +12,33 @@ class cv_Detector:
         pbtxt: configuration file of the model choosen
 
     Outputs:
-        result: list of lists, every list representing a bounding box for the caps present in the image
+        result: list of lists, every list representing a bounding box for the
+        caps present in the image
         final_image: Image with bounding boxes drawn on it """
 
     def __init__(self, label_dict: dict, frozen_graph: str, pbtxt: str):
         self.save_output = True
         self.Threshold = 0.3
         self.label_dict = label_dict
-        self.Net = cv2.dnn.readNetFromTensorflow(model=frozen_graph, config=pbtxt)
+        self.Net = cv2.dnn.readNetFromTensorflow(model=frozen_graph,
+                                                 config=pbtxt)
 
     def tray_detector(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         blur = cv2.GaussianBlur(gray, (3, 3), 0)
-        thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 205, 1)
-        contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
+        thresh = cv2.adaptiveThreshold(blur, 255,
+                                       cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY_INV, 205, 1)
+        contours = cv2.findContours(thresh, cv2.RETR_LIST,
+                                    cv2.CHAIN_APPROX_SIMPLE)[0]
         filtered = []
         for c in contours:
             if cv2.contourArea(c) < 1000:
                 continue
             filtered.append(c)
 
-        filtered = sorted(filtered, key=lambda c: cv2.contourArea(c), reverse=True)
+        filtered = sorted(filtered, key=lambda c: cv2.contourArea(c),
+                          reverse=True)
         rect = cv2.boundingRect(filtered[0])
         x, y, w, h = rect
         return [x, y, x + w, y + h, 'Tray', 100]
@@ -44,7 +50,8 @@ class cv_Detector:
         output:
             resized Image: Image after resizing """
         self.resize = op_size
-        self.resized_image = cv2.resize(image, self.resize, interpolation=cv2.INTER_AREA)
+        self.resized_image = cv2.resize(image, self.resize,
+                                        interpolation=cv2.INTER_AREA)
         return self.resized_image
 
     def detect_from_image(self, image):
@@ -54,8 +61,10 @@ class cv_Detector:
         outputs:
             detection: All the bounding boxes inferenced by the model"""
         self.image = image
-        self.image_h, self.image_w = np.shape(self.image)[0], np.shape(self.image)[1]
-        self.Net.setInput(cv2.dnn.blobFromImage(self.resized_image, size=self.resize,
+        self.image_h, self.image_w = np.shape(self.image)[0], \
+                                     np.shape(self.image)[1]
+        self.Net.setInput(cv2.dnn.blobFromImage(self.resized_image,
+                                                size=self.resize,
                                                 swapRB=True, crop=True))
         print('Graph loaded')
         detections = self.Net.forward()
@@ -78,10 +87,12 @@ class cv_Detector:
                 if cls_label == 'Tray':
                     seen_tray = True
                     if tray_score < float(score):
-                        tray_box = [x_min, y_min, x_max, y_max, cls_label, score]
+                        tray_box = [x_min, y_min, x_max, y_max, cls_label,
+                                    score]
                         tray_score = score
                     continue
-                single_result = [x_min, y_min, x_max, y_max, cls_label, float(score)]
+                single_result = [x_min, y_min, x_max, y_max, cls_label,
+                                 float(score)]
                 self.result_array.append(single_result)
 
         if not seen_tray:
@@ -111,9 +122,12 @@ class cv_Detector:
                 score = str(np.round(self.result_array[image_id][-1], 2))
 
                 text = cls + ": " + score
-                cv2.rectangle(final_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 1)
-                cv2.rectangle(final_img, (x_min, y_min - 20), (x_min, y_min), (255, 255, 255), -1)
-                cv2.putText(final_img, text, (x_min + 5, y_min - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                cv2.rectangle(final_img, (x_min, y_min), (x_max, y_max),
+                              (0, 255, 0), 1)
+                cv2.rectangle(final_img, (x_min, y_min - 20), (x_min, y_min),
+                              (255, 255, 255), -1)
+                cv2.putText(final_img, text, (x_min + 5, y_min - 7),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                             (0, 255, 0), 1)
 
         if save_output:
