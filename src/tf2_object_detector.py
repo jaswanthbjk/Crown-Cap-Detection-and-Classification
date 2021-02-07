@@ -71,6 +71,12 @@ class tf2_Detector:
                              float(bscores[idx])])
 
         if not seen_tray:
+            # bbox.append(
+            #     [int(im_width / 4), int(im_height / 4), int(im_height*3 / 4),
+            #      int(im_height*3 / 4), 'Tray', 100])
+            # self.tray = [int(im_width / 4), int(im_height / 4),
+            #              int(im_height*3 / 4), int(im_height*3 / 4), 'Tray',
+            #              100]
             bbox.append(self.tray_detector(self.image))
             self.tray = self.tray_detector(self.image)
         else:
