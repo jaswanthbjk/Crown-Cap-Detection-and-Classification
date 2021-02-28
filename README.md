@@ -27,7 +27,7 @@ Filter the cap detections by removing the caps detections outside of the boundin
 * Tensorflow Object Detection api
 * OpenCV: 4.4.0
 * numpy: 1.19.2
-* labelMe
+* [labelImg](https://github.com/tzutalin/labelImg)
 
 
 ## Steps of execution
