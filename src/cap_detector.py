@@ -1,12 +1,12 @@
 import argparse
+import csv
 import glob
 import os
-from pathlib import Path
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import cv2
 import numpy as np
 import tensorflow as tf
-import csv
-import posixpath
 
 from cv_object_detector import cv_Detector
 from tf2_object_detector import tf2_Detector
@@ -25,9 +25,9 @@ class cap_detector:
         self.ckpt_path = ckpt_path
 
         self.label_dict = {1: "Tray",
-                           2: "BottleCapFaceUp",
-                           3: "BottleCapFaceDown",
-                           4: "BottleCapDeformed"}
+                           2: "BottleCap_FaceUp",
+                           3: "BottleCap_FaceDown",
+                           4: "BottleCap_Deformed"}
         if tf_version == 2:
             self.cap_det = tf2_Detector(self.label_dict, self.ckpt_path,
                                         self.threshold)
@@ -110,7 +110,7 @@ class cap_detector:
         return filtered_boxes
 
     def perform_inference(self, viz_save=False, to_csv=True):
-        self.stable_frame = self.StableframeExtractor(viz_image=True)
+        self.stable_frame = self.StableframeExtractor(viz_image=False)
 
         if self.tf_version == 2:
             self.det_array = self.cap_det.detect_from_image(self.stable_frame)
@@ -124,24 +124,27 @@ class cap_detector:
         img = self.display_detections(self.stable_frame, filtered_boxes,
                                       det_time=None)
         if to_csv:
-            with open(os.path.join(self.result_path, str(self.video_name +
-                                                         ".csv")), 'w',
+            with open(os.path.join(self.result_path.rstrip(),
+                                   str(self.video_name + ".csv")), 'w',
                       newline='') as f:
                 writer = csv.writer(f, delimiter=',')
                 all_results_array = []
                 for arr in filtered_boxes:
-                    result_arr = []
+                    result_str = ''
                     if arr[4] != "Tray":
-                        result_arr.append(self.frame_number)
+                        result_str = result_str + str(self.frame_number) + ','
                         x_mid, y_mid = arr[0] + arr[2] / 2, arr[1] + arr[3] / 2
-                        result_arr.append(x_mid)
-                        result_arr.append(y_mid)
-                        result_arr.append(arr[4])
-                        all_results_array.append(result_arr)
-                writer.writerows(all_results_array)
+                        result_str = result_str + str(int(x_mid)) + ','
+                        result_str = result_str + str(int(y_mid)) + ','
+                        result_str = result_str + (arr[4])
+                        all_results_array.append(result_str)
+                writer.writerows([[item] for item in all_results_array])
 
         if viz_save:
             cv2.imshow('TF2 Detection', img)
+            img_out = os.path.join(self.result_path.rstrip(),
+                                   str(self.video_name + ".png"))
+            cv2.imwrite(img_out, img)
             cv2.waitKey(0)
 
     def display_detections(self, image, boxes_list, det_time=None):
@@ -190,8 +193,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dirname = os.path.dirname(__file__)
 
-    video_path = Path(args.video_path)
-    result_path = Path(args.result_path)
+    video_path = args.video_path
+    result_path = args.result_path
     frozengraph_path = '../models/tf1_model/frozen_inference_graph.pb'
     config_path = '../models/tf1_model/sample.pbtxt'
     ckpt_path = os.path.join(dirname, '../models/tf2_model/saved_model/')
@@ -208,4 +211,4 @@ if __name__ == '__main__':
                                      frozengraph_path=frozengraph_path,
                                      config_path=config_path,
                                      ckpt_path=ckpt_path, tf_version=tf_version)
-        cap_det_model.perform_inference(viz_save=False)
+        cap_det_model.perform_inference(viz_save=False, to_csv=True)
