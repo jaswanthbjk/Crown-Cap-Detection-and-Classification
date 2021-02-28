@@ -101,9 +101,11 @@ class capDetector:
             x_max = int(boxes_list[idx][2])
             y_max = int(boxes_list[idx][3])
             cls = str(boxes_list[idx][4])
-            if cls == "Tray":
-                continue
             score = str(np.round(boxes_list[idx][-1], 2))
+            if cls == "Tray":
+                filtered_boxes.append([x_min, y_min, x_max, y_max, cls,
+                                       float(score)])
+                continue
             box = [x_min, y_min, x_max, y_max, cls, float(score)]
             if self.bbox_in_check(box):
                 filtered_boxes.append(box)
@@ -141,11 +143,11 @@ class capDetector:
                 writer.writerows([[item] for item in all_results_array])
 
         if viz_save:
-            cv2.imshow('TF2 Detection', img)
+            # cv2.imshow('TF2 Detection', img)
             img_out = os.path.join(self.result_path.rstrip(),
                                    str(self.video_name + ".png"))
             cv2.imwrite(img_out, img)
-            cv2.waitKey(0)
+            # cv2.waitKey(0)
 
     def display_detections(self, image, boxes_list, det_time=None):
         image = self.stable_frame
@@ -211,4 +213,4 @@ if __name__ == '__main__':
                                      frozengraph_path=frozengraph_path,
                                      config_path=config_path,
                                      ckpt_path=ckpt_path, tf_version=tf_version)
-        cap_det_model.perform_inference(viz_save=False, to_csv=True)
+        cap_det_model.perform_inference(viz_save=True, to_csv=True)
