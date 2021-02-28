@@ -8,11 +8,11 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
-from cv_object_detector import cv_Detector
+from cv_object_detector import cvDetector
 from tf2_object_detector import tf2_Detector
 
 
-class cap_detector:
+class capDetector:
     def __init__(self, video_path: str, result_path: str, frozengraph_path: str,
                  config_path: str, ckpt_path: str, tf_version: int):
         self.video_path = video_path
@@ -32,10 +32,10 @@ class cap_detector:
             self.cap_det = tf2_Detector(self.label_dict, self.ckpt_path,
                                         self.threshold)
         else:
-            self.cap_det = cv_Detector(self.label_dict, self.frozen_graph,
-                                       self.pbtxt)
+            self.cap_det = cvDetector(self.label_dict, self.frozen_graph,
+                                      self.pbtxt)
 
-    def StableframeExtractor(self, viz_image=False):
+    def stable_frame_extractor(self, viz_image=False):
 
         videocap = cv2.VideoCapture(self.video_path)
         if not videocap.isOpened():
@@ -110,7 +110,7 @@ class cap_detector:
         return filtered_boxes
 
     def perform_inference(self, viz_save=False, to_csv=True):
-        self.stable_frame = self.StableframeExtractor(viz_image=False)
+        self.stable_frame = self.stable_frame_extractor(viz_image=False)
 
         if self.tf_version == 2:
             self.det_array = self.cap_det.detect_from_image(self.stable_frame)
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     videos = glob.glob(os.path.join(video_path, '*.mp4'))
     print("Number of videos present are {}".format(len(videos)))
     for video in videos:
-        cap_det_model = cap_detector(video_path=video, result_path=result_path,
+        cap_det_model = capDetector(video_path=video, result_path=result_path,
                                      frozengraph_path=frozengraph_path,
                                      config_path=config_path,
                                      ckpt_path=ckpt_path, tf_version=tf_version)

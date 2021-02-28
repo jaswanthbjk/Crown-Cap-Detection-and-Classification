@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-class cv_Detector:
+class cvDetector:
     """ Detector class for performing
     1) resizing to required image size
     2) Perform inference on a new image using the trained network

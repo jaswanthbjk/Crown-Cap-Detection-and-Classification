@@ -12,7 +12,8 @@ class Image_Detector:
         pbtxt: configuration file of the model choosen
 
     Outputs:
-        result: list of lists, every list representing a bounding box for the caps present in the image
+        result: list of lists, every list representing a bounding box for the
+                caps present in the image
         final_image: Image with bounding boxes drawn on it """
 
     def __init__(self, label_dict: dict, frozen_graph: str, pbtxt: str):
@@ -21,7 +22,8 @@ class Image_Detector:
         self.save_output = True
         self.Threshold = 50
         self.label_dict = label_dict
-        self.Net = cv2.dnn.readNetFromTensorflow(model=frozen_graph, config=pbtxt)
+        self.Net = cv2.dnn.readNetFromTensorflow(model=frozen_graph,
+                                                 config=pbtxt)
 
     def img_resizer(self, image, op_size):
         """Resize the input Image to required size
@@ -30,7 +32,8 @@ class Image_Detector:
         output:
             resized Image: Image after resizing """
         self.resize = op_size
-        self.resized_image = cv2.resize(image, self.resize, interpolation=cv2.INTER_AREA)
+        self.resized_image = cv2.resize(image, self.resize,
+                                        interpolation=cv2.INTER_AREA)
         return self.resized_image
 
     def detect_from_image(self, image):
@@ -41,8 +44,9 @@ class Image_Detector:
             detection: All the bounding boxes inferenced by the model"""
         self.image = image
         self.image_h, self.image_w = np.shape(self.image)
-        self.Net.setInput(cv2.dnn.blobFromImage(self.resized_image, size=self.resize,
-                                                swapRB=True, crop=True))
+        self.Net.setInput(cv2.dnn.blobFromImage(self.resized_image,
+                                                size=self.resize, swapRB=True,
+                                                crop=True))
         self.detections = self.Net.forward()
 
     def provide_output(self):
@@ -56,7 +60,8 @@ class Image_Detector:
                 x_max = int(detection[5] * self.image_w)
                 y_max = int(detection[6] * self.image_h)
                 cls_label = self.label_dict[int(detection[1])]
-                single_result = [x_min, y_min, x_max, y_max, cls_label, float(score)]
+                single_result = [x_min, y_min, x_max, y_max, cls_label,
+                                 float(score)]
                 self.result_array.append(single_result)
 
         return self.result_array
@@ -80,10 +85,12 @@ class Image_Detector:
                 score = str(np.round(self.result_array[image_id][-1], 2))
 
                 text = cls + ": " + score
-                cv2.rectangle(final_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 1)
-                cv2.rectangle(final_img, (x_min, y_min - 20), (x_min, y_min), (255, 255, 255), -1)
-                cv2.putText(final_img, text, (x_min + 5, y_min - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                            (0, 255, 0), 1)
+                cv2.rectangle(final_img, (x_min, y_min), (x_max, y_max),
+                              (0, 255, 0), 1)
+                cv2.rectangle(final_img, (x_min, y_min - 20), (x_min, y_min),
+                              (255, 255, 255), -1)
+                cv2.putText(final_img, text, (x_min + 5, y_min - 7),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
         if save_output:
             cv2.imwrite(output_dir, final_img)
